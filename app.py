@@ -4,11 +4,10 @@ import json
 from pathlib import Path
 
 import joblib
-import pandas as pd
 import streamlit as st
 
 from solar_intelligence.data import PowerRequest, fetch_power_daily
-from solar_intelligence.features import FEATURE_COLUMNS, make_next_day_dataset
+from solar_intelligence.features import FEATURE_COLUMNS, make_inference_features
 
 ARTIFACTS = Path("artifacts")
 MODEL_PATH = ARTIFACTS / "model.joblib"
@@ -20,7 +19,7 @@ st.caption("Explainable next-day solar-resource forecasting with NASA POWER data
 
 st.markdown(
     "This demo is intentionally tied to the project's Abu Dhabi reference location. "
-    "It uses today's measured meteorological conditions to estimate the next day's "
+    "It uses the latest complete measured meteorological observation to estimate the next day's "
     "surface solar irradiation."
 )
 
@@ -44,14 +43,16 @@ else:
         request = PowerRequest(24.4539, 54.3773, start, end)
         try:
             frame = fetch_power_daily(request)
-            x, _ = make_next_day_dataset(frame)
-            latest = x.iloc[[-1]][FEATURE_COLUMNS]
+            features = make_inference_features(frame)
+            latest = features.iloc[[-1]][FEATURE_COLUMNS]
+            observation_date = latest.index[-1].date().isoformat()
             prediction = float(model.predict(latest)[0])
             st.metric("Estimated next-day solar irradiation", f"{prediction:.2f} kWh/m²/day")
-            st.dataframe(pd.DataFrame(latest).T if latest.ndim == 1 else latest, use_container_width=True)
+            st.caption(f"Forecast is based on the latest complete observation: {observation_date}.")
+            st.dataframe(latest, use_container_width=True)
             st.caption(
                 "This is a portfolio experiment, not an operational energy forecast. "
                 "The model is evaluated only on the historical distribution used in training."
             )
-        except Exception as exc:
+        except Exception as exc:  # Reviewer demo: surface API/data/model errors without hiding them.
             st.error(str(exc))
