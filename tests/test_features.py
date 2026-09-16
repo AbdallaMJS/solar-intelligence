@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from solar_intelligence.features import chronological_split, make_next_day_dataset
+from solar_intelligence.features import (
+    chronological_split,
+    make_inference_features,
+    make_next_day_dataset,
+)
 
 
 def sample_frame() -> pd.DataFrame:
@@ -24,6 +28,13 @@ def test_next_day_target_is_shifted_forward():
     assert len(x) == 11
     assert y.iloc[0] == pytest.approx(4.1)
     assert x.iloc[0]["ALLSKY_SFC_SW_DWN"] == pytest.approx(4.0)
+
+
+def test_inference_keeps_latest_complete_observation():
+    frame = sample_frame()
+    x = make_inference_features(frame)
+    assert len(x) == len(frame)
+    assert x.index[-1] == frame.index[-1]
 
 
 def test_calendar_features_are_bounded():
