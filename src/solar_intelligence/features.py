@@ -21,16 +21,24 @@ def add_calendar_features(frame: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def make_next_day_dataset(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    """Use today's measured conditions to estimate tomorrow's solar resource."""
+def make_inference_features(frame: pd.DataFrame) -> pd.DataFrame:
+    """Build model features from observed days without requiring a future target."""
     missing = [column for column in [TARGET, *WEATHER_COLUMNS] if column not in frame.columns]
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
-
     data = add_calendar_features(frame)
-    data["target_next_day"] = data[TARGET].shift(-1)
-    data = data.dropna(subset=[*FEATURE_COLUMNS, "target_next_day"])
-    return data[FEATURE_COLUMNS].astype(float), data["target_next_day"].astype(float)
+    data = data.dropna(subset=FEATURE_COLUMNS)
+    if data.empty:
+        raise ValueError("No complete observations are available for inference.")
+    return data[FEATURE_COLUMNS].astype(float)
+
+
+def make_next_day_dataset(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """Use today's measured conditions to estimate tomorrow's solar resource."""
+    features = make_inference_features(frame)
+    target_next_day = frame[TARGET].shift(-1).reindex(features.index)
+    valid = target_next_day.notna()
+    return features.loc[valid], target_next_day.loc[valid].astype(float)
 
 
 def chronological_split(
